@@ -23,14 +23,14 @@ import static java.util.stream.Collectors.toMap;
 @SpringBootTest
 @Slf4j
 public class GuavaDAGTests {
-  private static MutableGraph<Node> graph;
+  private static MutableGraph<Node> DAG;
 
   private static Node[] nodes;
   private static Path[] paths;
 
   @BeforeAll
   public static void beforeAll() {
-    graph =
+    DAG =
         GraphBuilder.directed().allowsSelfLoops(false).nodeOrder(ElementOrder.insertion()).build();
 
     nodes =
@@ -43,7 +43,7 @@ public class GuavaDAGTests {
         };
 
     for (Node node : nodes) {
-      graph.addNode(node);
+      DAG.addNode(node);
     }
 
     paths =
@@ -57,8 +57,8 @@ public class GuavaDAGTests {
     for (Path path : paths) {
       Node previous = null;
       for (Node node : path.getNodes()) {
-        if (previous != null && graph.hasEdgeConnecting(previous, node) == false) {
-          graph.putEdge(previous, node);
+        if (previous != null && DAG.hasEdgeConnecting(previous, node) == false) {
+          DAG.putEdge(previous, node);
         }
         previous = node;
       }
@@ -68,21 +68,21 @@ public class GuavaDAGTests {
   @DisplayName("Test Graph")
   @Test
   public void test1() {
-    log.debug("{}", graph);
+    log.debug("{}", DAG);
 
-    for (Node node : graph.nodes()) {
-      log.debug("Node {}: in = {}, out = {}", node, graph.inDegree(node), graph.outDegree(node));
+    for (Node node : DAG.nodes()) {
+      log.debug("Node {}: in = {}, out = {}", node, DAG.inDegree(node), DAG.outDegree(node));
     }
   }
 
   @DisplayName("Test Copy Graph")
   @Test
   public void test2() {
-    MutableGraph<Node> copied = GraphBuilder.from(graph).build();
-    for (Node node : graph.nodes()) {
+    MutableGraph<Node> copied = GraphBuilder.from(DAG).build();
+    for (Node node : DAG.nodes()) {
       copied.addNode(node);
     }
-    for (EndpointPair<Node> edge : graph.edges()) {
+    for (EndpointPair<Node> edge : DAG.edges()) {
       copied.putEdge(edge);
     }
 
@@ -96,29 +96,34 @@ public class GuavaDAGTests {
   @DisplayName("Test Topological Sort")
   @Test
   public void test3() {
-    Objects.requireNonNull(graph);
+    Objects.requireNonNull(DAG);
+
+    List<Node> sorted = new ArrayList<>(DAG.nodes().size());
 
     Queue<Node> roots =
-        graph.nodes().stream()
-            .filter(node -> graph.inDegree(node) == 0)
+        DAG.nodes().stream()
+            .filter(node -> DAG.inDegree(node) == 0)
             .collect(toCollection(ArrayDeque::new));
-
     Map<Node, Integer> nonRootsToInDegree =
-        graph.nodes().stream()
-            .filter(node -> graph.inDegree(node) > 0)
-            .collect(toMap(node -> node, graph::inDegree, (a, b) -> a, HashMap::new));
-
+        DAG.nodes().stream()
+            .filter(node -> DAG.inDegree(node) > 0)
+            .collect(toMap(node -> node, DAG::inDegree, (a, b) -> a, HashMap::new));
     while (!roots.isEmpty()) {
       Node next = roots.remove();
-      log.debug("{}", next);
-      for (Node successor : graph.successors(next)) {
+      sorted.add(next);
+      for (Node successor : DAG.successors(next)) {
         int newInDegree = nonRootsToInDegree.get(successor) - 1;
         nonRootsToInDegree.put(successor, newInDegree);
         if (newInDegree == 0) {
           nonRootsToInDegree.remove(successor);
           roots.add(successor);
+          successor.setLevel(next.getLevel() + 1);
         }
       }
+    }
+
+    for (Node node : sorted) {
+      log.debug("{}", node);
     }
   }
 }
